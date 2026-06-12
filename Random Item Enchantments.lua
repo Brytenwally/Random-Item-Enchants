@@ -123,70 +123,51 @@ local function OnStoreNewItem(event, player, item, count)
         return
     end
 
-    -- 2. Locate the matching Item Level (iLvl) Bracket Row
-    local targetBracket = nil
-    
+    -- 2. Locate the matching base Item Level (iLvl) Bracket
+    local baseBracketId = 0
     for id, bracket in ipairs(ILEVEL_BRACKETS) do
         if itemLevel >= bracket.minLevel and itemLevel <= bracket.maxLevel then
-            targetBracket = bracket
+            baseBracketId = id
             break
         end
     end
+    if baseBracketId == 0 then baseBracketId = (itemLevel >= 300) and 15 or 1 end
 
-    -- Fallback safety check if item level slips outside standard boundaries
-    if not targetBracket then
-        if itemLevel >= 300 then
-            targetBracket = ILEVEL_BRACKETS[15]
-        else
-            targetBracket = ILEVEL_BRACKETS[1]
-        end
-    end
-
-    -- 3. Check if the pool is populated yet
-    local activePool = targetBracket.pool
-    if #activePool == 0 then return end
-
-    -- 4. Determine Random Property Density (5-Slot Cascading Resolution)
+    -- 3. Determine Random Property Density
     local slotRoll = math.random(1, 100)
     local slotsToEnchant = 1
+    if slotRoll <= CONFIG.SlotCountChances.FiveSlots then slotsToEnchant = 5
+    elseif slotRoll <= (CONFIG.SlotCountChances.FiveSlots + CONFIG.SlotCountChances.FourSlots) then slotsToEnchant = 4
+    elseif slotRoll <= (CONFIG.SlotCountChances.FiveSlots + CONFIG.SlotCountChances.FourSlots + CONFIG.SlotCountChances.ThreeSlots) then slotsToEnchant = 3
+    elseif slotRoll <= (CONFIG.SlotCountChances.FiveSlots + CONFIG.SlotCountChances.FourSlots + CONFIG.SlotCountChances.ThreeSlots + CONFIG.SlotCountChances.TwoSlots) then slotsToEnchant = 2 end
 
-    if slotRoll <= CONFIG.SlotCountChances.FiveSlots then
-        slotsToEnchant = 5
-    elseif slotRoll <= (CONFIG.SlotCountChances.FiveSlots + CONFIG.SlotCountChances.FourSlots) then
-        slotsToEnchant = 4
-    elseif slotRoll <= (CONFIG.SlotCountChances.FiveSlots + CONFIG.SlotCountChances.FourSlots + CONFIG.SlotCountChances.ThreeSlots) then
-        slotsToEnchant = 3
-    elseif slotRoll <= (CONFIG.SlotCountChances.FiveSlots + CONFIG.SlotCountChances.FourSlots + CONFIG.SlotCountChances.ThreeSlots + CONFIG.SlotCountChances.TwoSlots) then
-        slotsToEnchant = 2
-    end
-
-    -- 5. Select Attributes and Mutate Core Memory Pointers (Slots 7 to 11)
-    local usedPoolIndices = {}
+    -- 4. Select Attributes with Granular Luck (10% per stat slot)
+    local usedStatIndices = {}
     local actualEnchantsApplied = 0
     local rolledStatTexts = {}
 
     for i = 1, slotsToEnchant do
         local targetSlot = CONFIG.EnchantSlots[i]
-        local poolIndex
-        local protectionCounter = 0
         
-        -- Safeguard: Since #activePool is 5, this forces distinct stats up to 5 slots!
-        repeat
-            poolIndex = math.random(1, #activePool)
-            protectionCounter = protectionCounter + 1
-        until not usedPoolIndices[poolIndex] or protectionCounter > #activePool
+        -- Pick a random stat category (1: Agi, 2: Str, 3: Int, 4: Sta, 5: Spi)
+        local statIndex = math.random(1, 14)
         
-        usedPoolIndices[poolIndex] = true
-        local enchantId = activePool[poolIndex]
+        -- 10% Chance for individual "Lucky Stat Shift"
+        local targetBracketId = baseBracketId
+        if math.random(1, 100) <= 10 then
+            local offset = (math.random(1, 2) == 1) and 1 or -1
+            local potentialId = baseBracketId + offset
+            if potentialId >= 1 and potentialId <= 15 then
+                targetBracketId = potentialId
+            end
+        end
+        
+        local enchantId = ILEVEL_BRACKETS[targetBracketId].pool[statIndex]
         
         if enchantId then
-            -- Direct C++ RAM manipulation targeting Slots 7 through 11
             item:SetEnchantment(enchantId, targetSlot)
             actualEnchantsApplied = actualEnchantsApplied + 1
-            
-            -- Capture text string for chat module output
-            local statText = ENCHANT_NAMES[enchantId] or ("Stat (ID: " .. enchantId .. ")")
-            table.insert(rolledStatTexts, statText)
+            table.insert(rolledStatTexts, ENCHANT_NAMES[enchantId] or "Stat")
         end
     end
 
