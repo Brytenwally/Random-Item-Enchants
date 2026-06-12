@@ -5,7 +5,7 @@ An Eluna Lua script for AzerothCore that dynamically injects multi-attribute pro
 ## Requirements
 
 * **AzerothCore** (WOTLK 3.3.5a)
-* **mod-ale** (Acore Lua Engine)
+* **mod-ale** (Requires at least this commit https://github.com/azerothcore/mod-ale/pull/387 or my forked version https://github.com/azerothcore/mod-ale/pull/387)
 
 ## Setup
 
